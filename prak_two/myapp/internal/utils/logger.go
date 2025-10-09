@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,6 +15,12 @@ func LogRequest(r *http.Request) {
 		r.Method,
 		r.URL.Path,
 	)
+}
+
+func NewID16() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func LogInfo(msg string) {
