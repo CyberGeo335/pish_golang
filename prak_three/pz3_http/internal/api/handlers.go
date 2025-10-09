@@ -21,7 +21,7 @@ func NewHandlers(store *storage.MemoryStore) *Handlers {
 func (h *Handlers) ListTasks(w http.ResponseWriter, r *http.Request) {
 	tasks := h.Store.List()
 
-	// Поддержка простых фильтров через query: ?q=text
+	// Простые фильтры через query: ?q=text
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if q != "" {
 		filtered := tasks[:0]
@@ -72,7 +72,7 @@ func (h *Handlers) CreateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) GetTask(w http.ResponseWriter, r *http.Request) {
-	// Ожидаем путь вида /tasks/123
+	// Ожидаем путь вида </tasks/123>
 	id, err := extractIDFromPath(w, r)
 	if err != nil {
 		return
