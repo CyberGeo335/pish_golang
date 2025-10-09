@@ -21,19 +21,29 @@
 ### Описание проекта и требования:
 #### Структура проекта:
 ```
-├── prak_one
-│   ├── README.md
-│   ├── helloapi
-│   │   ├── cmd
-│   │   │   └── server
-│   │   │       └── main.go
-│   │   ├── go.mod
-│   │   ├── go.sum
-│   │   ├── helloapi            # бинарник для macos
-│   │   └── helloapi.exe        # бинарник для windows
-│   └── images                  # изображения
-
+└── prak_two
+    ├── README.md
+    ├── assets
+    └── myapp
+        ├── bin
+        │   └── myapp
+        ├── binmyapp.exe
+        ├── cmd
+        │   └── myapp
+        │       └── main.go
+        ├── go.mod
+        ├── internal
+        │   └── app
+        │       ├── app.go
+        │       └── handlers
+        │           ├── fail.go
+        │           ├── ping.go
+        │           └── root.go
+        └── utils
+            ├── httpjson.go
+            └── logger.go
 ```
+
 #### Запуск проекта:
 1) Клоним репозиторий:
 ```bash
@@ -41,45 +51,37 @@ git clone https://github.com/CyberGeo335/pish_golang.git
 ```
 2) Проверяем что Go и Git есть:
 ```bash
-g.kozin@VIS prak_one % go version
+g.kozin@VIS prak_two % go version
 go version go1.23.2 darwin/arm64
-g.kozin@VIS prak_one % git --version
+g.kozin@VIS prak_two % git --version
 git version 2.39.5 (Apple Git-154)
-g.kozin@VIS prak_one % 
+g.kozin@VIS prak_two % 
 ```
-3) Переходим в первую домашнюю работу:
+3) Переходим во вторую домашнюю работу:
 ```bash
-cd prak_one/helloapi
+cd prak_two/myapp
 ```
-4) Так как последняя версия домашней работы сделана включительно до пункта 8, поэтому `APP_PORT` настраиваемвый:
-```bash
-# Для MacOS:
 
-APP_PORT=8081 go run ./cmd/server
-
-# Для Windows:
-
-$env:APP_PORT="8081"
-go run ./cmd/server
-```
 #### Проверка работоспособности:
-1) Просмотрим версии:
-
-![Скриншот запуска](./assets/Снимок%20экрана%202025-10-09%20в%2013.58.46.png)
-
-2) Запустим:
-
-![Скриншот запуска](./assets/Снимок%20экрана%202025-10-09%20в%2014.12.25.png)
-
-Увидим, что всё отработало успешно, запускали на порту 8081
-
-3) Проверим, что наши ручки работают:
+1) Запустим наше приложение:
 ```bash
-curl http://localhost:8081/hello
-curl http://localhost:8081/user
+go run ./cmd/myapp
 ```
-![Скриншот запуска](./assets/Снимок%20экрана%202025-10-09%20в%2014.16.05.png)
+Покажем, что всё работает.
 
-Ручки отработали, ответ получен. Так же была сделана проверка на форматирование кода:
+Наши ручки:
+```bash
+# first curl
+curl http://localhost:8080/
 
-![Скриншот запуска](./assets/Снимок%20экрана%202025-10-09%20в%2013.07.05.png)
+# second curl
+curl http://localhost:8080/ping
+
+# third curl
+curl http://localhost:8080/fail
+
+# fourth curl
+curl -i -H "X-Request-Id: demo-123" http://localhost:8080/ping
+```
+
+![Скриншот запуска](./assets/Снимок%20экрана%202025-10-09%20в%2015.44.11.png)
