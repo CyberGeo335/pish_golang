@@ -13,10 +13,10 @@
 
 ## Быстрые ссылки
 
-* ▶️ **Практика 1** — [pish_golang/prak_one/](pish_golang/prak_one/)
-* ▶️ **Практика 2** — [pish_golang/prak_two/](pish_golang/prak_two/)
-* ▶️ **Практика 3** — [pish_golang/prak_three/](pish_golang/prak_three/)
-* ▶️ **Практика 4** — [pish_golang/prak_four/](pish_golang/prak_four/)
+* ▶️ **Практика 1** — [pish_golang/prak_one/](/prak_one/)
+* ▶️ **Практика 2** — [pish_golang/prak_two/](/prak_two/)
+* ▶️ **Практика 3** — [pish_golang/prak_three/](/prak_three/)
+* ▶️ **Практика 4** — [pish_golang/prak_four/](/prak_four/)
 
 ---
 
