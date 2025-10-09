@@ -21,7 +21,7 @@
 * Собрать бинарник .exe и подготовить README и отчёт.
 
 ### Описание проекта и требования:
-Структура проекта:
+#### Структура проекта:
 ```
 ├── prak_one
 │   ├── README.md
@@ -33,6 +33,38 @@
 │   │   ├── go.sum
 │   │   ├── helloapi            # бинарник для macos
 │   │   └── helloapi.exe        # бинарник для windows
-│   └── images
+│   └── images                        # изображения
 
 ```
+#### Запуск проекта:
+1) Клоним репозиторий:
+```bash
+git clone https://github.com/CyberGeo335/pish_golang.git
+```
+2) Проверяем что Go и Git есть:
+```bash
+g.kozin@VIS prak_one % go version
+go version go1.23.2 darwin/arm64
+g.kozin@VIS prak_one % git --version
+git version 2.39.5 (Apple Git-154)
+g.kozin@VIS prak_one % 
+```
+3) Переходим в первую домашнюю работу:
+```bash
+cd prak_one/helloapi
+```
+4) Так как последняя версия домашней работы сделана включительно до пункта 8, поэтому `APP_PORT` настраиваемвый:
+```bash
+# Для MacOS:
+
+APP_PORT=8081 go run ./cmd/server
+
+# Для Windows:
+
+$env:APP_PORT="8081"
+go run ./cmd/server
+```
+#### Проверка работоспособности:
+1) Просмотрим версии:
+
+<img src="prak_one/images/Снимок экрана 2025-10-09 в 13.47.15.png" alt="Скриншот запуска" width="600">
