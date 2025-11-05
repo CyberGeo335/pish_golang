@@ -156,3 +156,5 @@ dmypy.json
 /datasets
 /app/models
 /app/backend/uploads
+
+/local_research
