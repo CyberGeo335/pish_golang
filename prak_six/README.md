@@ -25,7 +25,7 @@
 ├── README.md
 ├── assets
 ├── cmd
-│   └── prak_five
+│   └── prak_six
 │       └── main.go
 ├── go.mod
 ├── go.sum
@@ -34,10 +34,14 @@
     │   └── app.go
     ├── config
     │   └── config.go
-    └── utils
-        ├── db.go
-        ├── postgresURL.go
-        └── repository.go
+    ├── db
+    │   └── postgres.go
+    ├── httpapi
+    │   ├── handlers.go
+    │   └── router.go
+    └── models
+        └── models.go
+
 ```
 
 #### Запуск проекта:
@@ -47,17 +51,17 @@ git clone https://github.com/CyberGeo335/pish_golang.git
 ```
 2) Проверяем что Go и Git есть:
 ```bash
-g.kozin@VIS prak_five % go version
+g.kozin@VIS prak_six % go version
 go version go1.23.2 darwin/arm64
-g.kozin@VIS prak_five % git --version
+g.kozin@VIS prak_six % git --version
 git version 2.39.5 (Apple Git-154)
 g.kozin@VIS prak_five % 
-```
+prak_six
 3) Переходим в пятую домашнюю работу:
 ```bash
-cd prak_five/
+cd prak_six/
 ```
-4) Для того чтобы Скрипт выполнялся к БД, в дириктории `prak_five` у вас должен быть файл `.env`:
+4) Для того чтобы Скрипт выполнялся к БД, в дириктории `prak_six` у вас должен быть файл `.env`:
 ```bash
 DB_HOST=1.1.1.1
 DB_PORT=5432
@@ -67,32 +71,47 @@ DB_NAME=за_даларан
 ```
 5) Запуск проекта:
 ```bash
-g.kozin@VIS-G6572P prak_five % go run ./cmd/prak_five
+g.kozin@VIS-G6572P prak_five % go run ./cmd/prak_six
 ```
 #### Проверка работоспособности:
-1) Для данной и последующих работ была арендована ВМ на Selectel, первая проверка до доп задач выполнятся на ней:
+Для работ была арендована ВМ на Selectel. Вы можете проверит работоспособность через следующие ручки:
 
-![Скриншот запуска](./assets/Снимок%20экрана%202025-11-06%20в%2011.51.55.png)
-
-Вывели:
-* Connected to PostgreSQL
-* Inserted task (по три штуки)
-* Вывод Tasks
-
-2) Доп задания:
-
-Локальный скриншот часть 1:
-![Скриншот запуска](./assets/Снимок%20экрана%202025-11-06%20в%2012.02.10.png)
-
-Локальный скриншот часть 2:
-![Скриншот запуска](./assets/Снимок%20экрана%202025-11-06%20в%2012.03.51.png)
-
-3) настройки:
 ```bash
-	db.SetMaxOpenConns(2)                   // максимум активных соединений
-	db.SetMaxIdleConns(2)                   // соединений в простое
-	db.SetConnMaxLifetime(30 * time.Minute) // будет жить 30 минут
+http://178.72.139.210:8080/health
+
+http://178.72.139.210:8080/notes/1
 ```
-* SetMaxOpenConns -> нужно рассчитывать из количества нагрузок, соединений
-* SetMaxIdleConns -> подбирается среднее значение, чтобы не было простаивающих коннектов
-* SetConnMaxLifetime -> 30 минут оптимально для 2 активных соединений
+1) Проверим, статус состояния:
+```bash
+ curl 178.72.139.210:8080/health
+```
+
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-06%20в%2017.02.53.png)
+
+получили статус "ok":
+```
+{
+  "status": "ok"
+}
+```
+
+2) Добавим пользователя:
+```
+ curl -X POST http://178.72.139.210:8080/users -H "Content-Type: application/json" -d "{\"name\":\"Geo\",\"email\":\"geoK@gmail.com\"}"
+```
+Результат работы:
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-06%20в%2017.06.03.png)
+
+3) Добавим заметку:
+```
+curl -X POST http://178.72.139.210:8080/notes -H "Content-Type: application/json" -d "{\"title\":\"Вторая заметка\",\"content\":\"Текст...\",\"userId\":2,\"tags\":[\"go\",\"gorm\"]}"
+```
+Результат работы:
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-06%20в%2017.09.33.png)
+
+4) Проверим заметку:
+```
+http://178.72.139.210:8080/notes/2
+```
+Результат работы:
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-06%20в%2017.13.04.png)
