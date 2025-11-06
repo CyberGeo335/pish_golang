@@ -13,7 +13,7 @@ func OpenDB(dsn string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	// настройки пула — достаточно для локалки
+	// настройки пула
 	db.SetMaxOpenConns(2)                   // максимум активных соединений
 	db.SetMaxIdleConns(2)                   // соединений в простое
 	db.SetConnMaxLifetime(30 * time.Minute) // будет жить 30 минут
