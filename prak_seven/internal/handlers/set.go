@@ -14,7 +14,7 @@ func SetHandler(c *cache.Cache, writer http.ResponseWriter, request *http.Reques
 		http.Error(writer, "missing parameters.", http.StatusBadRequest)
 		return
 	}
-	err := c.Set(key, value, 10*time.Second) // TTL = 10 сек
+	err := c.Set(key, value, 100*time.Second) // TTL = 10 сек
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 		return

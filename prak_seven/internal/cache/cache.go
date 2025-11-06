@@ -12,7 +12,7 @@ type Cache struct {
 
 func New(addr string) *Cache {
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
+		Addr:     addr,
 		Password: "",
 		DB:       0,
 	})
