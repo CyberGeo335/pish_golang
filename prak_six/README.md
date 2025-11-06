@@ -43,10 +43,10 @@
         └── models.go
 
 ```
-
+ 
 #### Запуск проекта:
 1) Клоним репозиторий:
-```bash
+```
 git clone https://github.com/CyberGeo335/pish_golang.git
 ```
 2) Проверяем что Go и Git есть:
