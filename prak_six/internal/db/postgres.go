@@ -1,6 +1,7 @@
 package db
 
 import (
+	"github.com/joho/godotenv"
 	"log"
 	"net"
 	"net/url"
@@ -49,6 +50,9 @@ func BuildPostgresURL() (string, error) {
 }
 
 func Connect() *gorm.DB {
+
+	_ = godotenv.Load()
+
 	dsn, err := BuildPostgresURL()
 	if err != nil {
 		log.Fatal("build DSN:", err)
@@ -66,8 +70,8 @@ func Connect() *gorm.DB {
 	if err != nil {
 		log.Fatal(err)
 	}
-	sqlDB.SetMaxOpenConns(20)
-	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(2)
+	sqlDB.SetMaxIdleConns(2)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return db
