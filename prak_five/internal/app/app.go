@@ -53,4 +53,24 @@ func Run() {
 		fmt.Printf("#%d | %-24s | done=%-5v | %s\n",
 			t.ID, t.Title, t.Done, t.CreatedAt.Format(time.RFC3339))
 	}
+
+	// FindByID:
+	if len(tasks) > 0 {
+		idToShow := tasks[0].ID // для примера берём первый
+		detail, err := repo.FindByID(ctx, idToShow)
+		if err != nil {
+			log.Printf("FindByID error: %v", err)
+		} else {
+			fmt.Println("\n=== Task details ===")
+			fmt.Printf("#%d | %s | done=%v | created_at=%s\n",
+				detail.ID, detail.Title, detail.Done, detail.CreatedAt.Format(time.RFC3339))
+		}
+	}
+
+	// массовая вставка
+	bulk := []string{"Запланировать встречу", "Написать отчёт", "Оплатить счета"}
+	if err := repo.CreateMany(ctx, bulk); err != nil {
+		log.Fatalf("CreateMany error: %v", err)
+	}
+	log.Printf("Inserted %d rows via CreateMany", len(bulk))
 }
