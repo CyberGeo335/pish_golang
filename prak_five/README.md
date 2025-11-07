@@ -47,11 +47,11 @@ git clone https://github.com/CyberGeo335/pish_golang.git
 ```
 2) Проверяем что Go и Git есть:
 ```bash
-g.kozin@VIS prak_five % go version
+prak_five % go version
 go version go1.23.2 darwin/arm64
-g.kozin@VIS prak_five % git --version
+prak_five % git --version
 git version 2.39.5 (Apple Git-154)
-g.kozin@VIS prak_five % 
+prak_five % 
 ```
 3) Переходим в пятую домашнюю работу:
 ```bash
@@ -67,7 +67,7 @@ DB_NAME=за_даларан
 ```
 5) Запуск проекта:
 ```bash
-g.kozin@VIS-G6572P prak_five % go run ./cmd/prak_five
+prak_five % go run ./cmd/prak_five
 ```
 #### Проверка работоспособности:
 1) Для данной и последующих работ была арендована ВМ на Selectel, первая проверка до доп задач выполнятся на ней:

@@ -41,13 +41,13 @@ git clone https://github.com/CyberGeo335/pish_golang.git
 ```
 2) Проверяем что Go и Git есть:
 ```bash
-g.kozin@VIS prak_three % go version
+prak_three % go version
 go version go1.23.2 darwin/arm64
-g.kozin@VIS prak_three % git --version
+prak_three % git --version
 git version 2.39.5 (Apple Git-154)
-g.kozin@VIS prak_three % 
+prak_three % 
 ```
-3) Переходим в первую домашнюю работу:
+3) Переходим в третью домашнюю работу:
 ```bash
 cd prak_three/pz3_http
 ```

@@ -41,7 +41,6 @@
     │   └── router.go
     └── models
         └── models.go
-
 ```
  
 #### Запуск проекта:
@@ -51,13 +50,13 @@ git clone https://github.com/CyberGeo335/pish_golang.git
 ```
 2) Проверяем что Go и Git есть:
 ```bash
-g.kozin@VIS prak_six % go version
+prak_six % go version
 go version go1.23.2 darwin/arm64
-g.kozin@VIS prak_six % git --version
+prak_six % git --version
 git version 2.39.5 (Apple Git-154)
-g.kozin@VIS prak_five % 
-prak_six
-3) Переходим в пятую домашнюю работу:
+prak_six % 
+```
+3) Переходим в шестую домашнюю работу:
 ```bash
 cd prak_six/
 ```
@@ -71,10 +70,10 @@ DB_NAME=за_даларан
 ```
 5) Запуск проекта:
 ```bash
-g.kozin@VIS-G6572P prak_five % go run ./cmd/prak_six
+prak_six % go run ./cmd/prak_six
 ```
 #### Проверка работоспособности:
-Для работ была арендована ВМ на Selectel. Вы можете проверит работоспособность через следующие ручки:
+Для работ была арендована ВМ на Selectel. Вы можете проверить работоспособность через следующие ручки:
 
 ```bash
 http://178.72.139.210:8080/health
@@ -83,7 +82,7 @@ http://178.72.139.210:8080/notes/1
 ```
 1) Проверим, статус состояния:
 ```bash
- curl 178.72.139.210:8080/health
+curl 178.72.139.210:8080/health
 ```
 
 ![Скриншот запуска](./assets/Снимок%20экрана%202025-11-06%20в%2017.02.53.png)

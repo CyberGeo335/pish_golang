@@ -51,11 +51,11 @@ git clone https://github.com/CyberGeo335/pish_golang.git
 ```
 2) Проверяем что Go и Git есть:
 ```bash
-g.kozin@VIS prak_two % go version
+prak_two % go version
 go version go1.23.2 darwin/arm64
-g.kozin@VIS prak_two % git --version
+prak_two % git --version
 git version 2.39.5 (Apple Git-154)
-g.kozin@VIS prak_two % 
+prak_two % 
 ```
 3) Переходим во вторую домашнюю работу:
 ```bash

@@ -18,7 +18,8 @@
 * ▶️ **Практика 3** — [pish_golang/prak_three/](/prak_three/)
 * ▶️ **Практика 4** — [pish_golang/prak_four/](/prak_four/)
 * ▶️ **Практика 5** — [pish_golang/prak_five/](/prak_five/)
-
+* ▶️ **Практика 6** — [pish_golang/prak_six/](/prak_six/)
+* ▶️ **Практика 7** — [pish_golang/prak_seven/](/prak_seven/)
 ---
 
 ## Содержание
