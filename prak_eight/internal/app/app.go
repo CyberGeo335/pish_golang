@@ -1,0 +1,46 @@
+package app
+
+import (
+	"context"
+	"github.com/CyberGeo335/prak_eight/internal/db"
+	"github.com/CyberGeo335/prak_eight/internal/notes"
+	"github.com/go-chi/chi/v5"
+	"log"
+	"net/http"
+	"os"
+)
+
+func Run() {
+	uri := getenv("MONGO_URI", "mongodb://root:secret@localhost:27017/?authSource=admin")
+	dbName := getenv("MONGO_DB", "pz8")
+	addr := getenv("HTTP_ADDR", ":8080")
+
+	deps, err := db.ConnectMongo(context.Background(), uri, dbName)
+	if err != nil {
+		log.Fatal("mongo connect:", err)
+	}
+	defer deps.Client.Disconnect(context.Background())
+
+	repo, err := notes.NewRepo(deps.Database)
+	if err != nil {
+		log.Fatal("notes repo:", err)
+	}
+	h := notes.NewHandler(repo)
+
+	r := chi.NewRouter()
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	})
+	r.Mount("/api/v1/notes", h.Routes())
+
+	log.Println("listening on", addr)
+	log.Fatal(http.ListenAndServe(addr, r))
+}
+
+func getenv(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
+}
