@@ -100,12 +100,34 @@ http://localhost:8080/api/v1/notes?limit=5&skip=0&q=first
 ![Скриншот запуска](./assets/Снимок%20экрана%202025-11-15%20в%2015.42.09.png)
 
 
+2) Получим id:
+* `id` -> 6918625be506f7ba300e2a97
 
-
+```bash
 http://localhost:8080/api/v1/notes/6918625be506f7ba300e2a97
+```
+
+Результат работы:
+
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-15%20в%2015.45.30.png)
 
 
+3) Частичное обновление:
+```bash
+curl -s -X PATCH http://localhost:8080/api/v1/notes/6918625be506f7ba300e2a97 -H "Content-Type: application/json" -d '{"content":"Updated content"}'
+```
+Результат работы:
 
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-15%20в%2015.58.05.png)
 
+4) Удаление:
+```bash
+curl -i -X DELETE http://localhost:8080/api/v1/notes/6918625be506f7ba300e2a97
+```
 
+Результат работы:
+
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-15%20в%2015.59.30.png)
+
+ОСТАЛЬНОЕ В РАБОТЕ
 
