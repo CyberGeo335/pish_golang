@@ -104,7 +104,7 @@ http://localhost:8080/api/v1/notes?limit=5&skip=0&q=first
 * `id` -> 6918625be506f7ba300e2a97
 
 ```bash
-http://localhost:8080/api/v1/notes/6918625be506f7ba300e2a97
+http://178.72.139.210:8080/api/v1/notes/6918625be506f7ba300e2a97
 ```
 
 Результат работы:
@@ -114,7 +114,7 @@ http://localhost:8080/api/v1/notes/6918625be506f7ba300e2a97
 
 3) Частичное обновление:
 ```bash
-curl -s -X PATCH http://localhost:8080/api/v1/notes/6918625be506f7ba300e2a97 -H "Content-Type: application/json" -d '{"content":"Updated content"}'
+curl -s -X PATCH http://178.72.139.210:8080/api/v1/notes/6918625be506f7ba300e2a97 -H "Content-Type: application/json" -d '{"content":"Updated content"}'
 ```
 Результат работы:
 
@@ -122,7 +122,7 @@ curl -s -X PATCH http://localhost:8080/api/v1/notes/6918625be506f7ba300e2a97 -H 
 
 4) Удаление:
 ```bash
-curl -i -X DELETE http://localhost:8080/api/v1/notes/6918625be506f7ba300e2a97
+curl -i -X DELETE http://178.72.139.210:8080/api/v1/notes/6918625be506f7ba300e2a97
 ```
 
 Результат работы:
