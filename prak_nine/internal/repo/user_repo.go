@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/CyberGeo335/prak_nine/internal/core"
+	"github.com/jackc/pgconn" // ← вот это добавить в imports
 	"gorm.io/gorm"
 )
 
@@ -20,13 +21,24 @@ func (r *UserRepo) AutoMigrate() error {
 }
 
 func (r *UserRepo) Create(ctx context.Context, u *core.User) error {
-	if err := r.db.WithContext(ctx).Create(u).Error; err != nil {
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return ErrEmailTaken
-		}
-		return err
+	err := r.db.WithContext(ctx).Create(u).Error
+	if err == nil {
+		return nil
 	}
-	return nil
+
+	// 1. Сначала пробуем нормальный путь GORM
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return ErrEmailTaken
+	}
+
+	// 2. Явно распарсим ошибку postgres по коду SQLSTATE
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return ErrEmailTaken
+	}
+
+	// 3. Всё остальное трушная db-ошибка
+	return err
 }
 
 func (r *UserRepo) ByEmail(ctx context.Context, email string) (core.User, error) {
