@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -47,7 +48,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	u := core.User{Email: in.Email, PasswordHash: string(hash)}
 	if err := h.Users.Create(r.Context(), &u); err != nil {
-		if err == repo.ErrEmailTaken {
+		if errors.Is(err, repo.ErrEmailTaken) {
 			writeErr(w, http.StatusConflict, "email_taken")
 			return
 		}

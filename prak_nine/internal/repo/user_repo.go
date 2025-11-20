@@ -3,9 +3,11 @@ package repo
 import (
 	"context"
 	"errors"
+	"log"
+	"strings"
 
 	"github.com/CyberGeo335/prak_nine/internal/core"
-	"github.com/jackc/pgconn" // ← вот это добавить в imports
+	"github.com/jackc/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -26,18 +28,34 @@ func (r *UserRepo) Create(ctx context.Context, u *core.User) error {
 		return nil
 	}
 
-	// 1. Сначала пробуем нормальный путь GORM
+	// Логируем "сырую" ошибку и её тип
+	log.Printf("Create user raw error (%T): %v\n", err, err)
+
+	// 1) Стандартный путь gorm для дубликата
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		log.Println("mapped duplicate via gorm.ErrDuplicatedKey")
 		return ErrEmailTaken
 	}
 
-	// 2. Явно распарсим ошибку postgres по коду SQLSTATE
+	// 2) Прямо парсим postgres-ошибку
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+	if errors.As(err, &pgErr) {
+		log.Printf("pg error code: %s, message: %s\n", pgErr.Code, pgErr.Message)
+		if pgErr.Code == "23505" {
+			log.Println("mapped duplicate via pgErr 23505")
+			return ErrEmailTaken
+		}
+	}
+
+	// 3) Жёсткий, но надёжный fallback по тексту
+	msg := err.Error()
+	if strings.Contains(msg, "SQLSTATE 23505") ||
+		strings.Contains(msg, "duplicate key value violates unique constraint") {
+		log.Println("mapped duplicate via string contains")
 		return ErrEmailTaken
 	}
 
-	// 3. Всё остальное трушная db-ошибка
+	// Всё остальное — реальная DB-ошибка
 	return err
 }
 
