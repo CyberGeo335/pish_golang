@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 
@@ -12,6 +13,10 @@ import (
 )
 
 func Run() {
+	if err := godotenv.Load(".env"); err != nil {
+		log.Println("warning: .env not loaded:", err)
+	}
+
 	cfg := config.Load()
 	db, err := repo.Open(cfg.DB_DSN)
 	if err != nil {
