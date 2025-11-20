@@ -65,14 +65,50 @@ cd prak_nine/cmd
 DB_DSN=postgres://root:root@http://address:5432/pz9_bcrypt?sslmode=disable
 ```
 
-
-3) Проверим, что наши ручки работают:
+5.0) Примеры CURL и их status:
 ```bash
-curl http://localhost:8081/hello
-curl http://localhost:8081/user
+# Регистрация
+curl -i -X POST http://http://178.72.139.210:8082/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Secret123!"}'
+
+# Повторная регистрация → 409
+curl -i -X POST http://178.72.139.210:8082/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"AnotherPass"}'
+
+# Вход (верный)
+curl -i -X POST http://178.72.139.210:8082/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Secret123!"}'
+
+# Вход (неверный) → 401
+curl -i -X POST http://178.72.139.210:8082/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"wrong"}'
 ```
-![Скриншот запуска](./assets/Снимок%20экрана%202025-10-09%20в%2014.16.05.png)
+5.1) Результат регистрации:
 
-Ручки отработали, ответ получен. Так же была сделана проверка на форматирование кода:
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-20%20в%2017.16.30.png)
 
-![Скриншот запуска](./assets/Снимок%20экрана%202025-10-09%20в%2013.07.05.png)
+5.2) Результат повторной регистрации (409):
+
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-20%20в%2017.44.57.png)
+
+5.3) Вход (верный)
+
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-20%20в%2017.21.39.png)
+
+5.3) Вход (неверный → 401)
+
+![Скриншот запуска](./assets/Снимок%20экрана%202025-11-20%20в%2017.22.21.png)
+
+
+
+
+
+
+
+
+
+
