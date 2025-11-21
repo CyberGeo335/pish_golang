@@ -68,7 +68,7 @@ DB_DSN=postgres://root:root@http://address:5432/pz9_bcrypt?sslmode=disable
 5.0) Примеры CURL и их status:
 ```bash
 # Регистрация
-curl -i -X POST http://http://178.72.139.210:8082/auth/register \
+curl -i -X POST http://178.72.139.210:8082/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"Secret123!"}'
 
