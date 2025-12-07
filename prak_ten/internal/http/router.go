@@ -8,38 +8,41 @@ import (
 	"github.com/CyberGeo335/prak_ten/internal/core"
 	"github.com/CyberGeo335/prak_ten/internal/http/middleware"
 	"github.com/CyberGeo335/prak_ten/internal/platform/config"
-	"github.com/CyberGeo335/prak_ten/internal/platform/jwt"
+	jwtplatform "github.com/CyberGeo335/prak_ten/internal/platform/jwt"
 	"github.com/CyberGeo335/prak_ten/internal/repo"
 )
 
-func Build(cfg config.Config) http.Handler {
+func Build(cfg config.Config) (http.Handler, error) {
 	r := chi.NewRouter()
 
-	// DI
+	r.Use(middleware.Logging)
+
 	userRepo := repo.NewUserMem()
-	jwtv := jwt.NewRS256(cfg.JWTSecret, cfg.JWTTTL)
-	svc := core.NewService(userRepo, jwtv)
+	jwtm, err := jwtplatform.NewRS256(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	svc := core.NewService(userRepo, jwtm, cfg.RateLimitLoginMax, cfg.RateLimitLoginWindow)
 
 	// Публичные маршруты
-	r.Post("/api/v1/login", svc.LoginHandler) // выдаёт access + refresh
+	r.Post("/api/v1/login", svc.LoginHandler)
 	r.Post("/api/v1/refresh", svc.RefreshHandler)
 
-	// Защищённые маршруты (admin + user)
+	// Защищённые маршруты (user + admin)
 	r.Group(func(priv chi.Router) {
-		priv.Use(middleware.AuthN(jwtv))
+		priv.Use(middleware.AuthN(jwtm))
 		priv.Use(middleware.AuthZRoles("admin", "user"))
-
 		priv.Get("/api/v1/me", svc.MeHandler)
-		priv.Get("/api/v1/users/{id}", svc.UserByIDHandler) // ABAC
+		priv.Get("/api/v1/users/{id}", svc.GetUserHandler)
 	})
 
-	// Только для админов
+	// Только админы
 	r.Group(func(admin chi.Router) {
-		admin.Use(middleware.AuthN(jwtv))
+		admin.Use(middleware.AuthN(jwtm))
 		admin.Use(middleware.AuthZRoles("admin"))
-
 		admin.Get("/api/v1/admin/stats", svc.AdminStats)
 	})
 
-	return r
+	return r, nil
 }

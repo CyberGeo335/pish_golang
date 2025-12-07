@@ -1,63 +1,125 @@
 package jwt
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"strings"
 	"time"
 
 	jwtlib "github.com/golang-jwt/jwt/v5"
+
+	"github.com/CyberGeo335/prak_ten/internal/platform/config"
 )
 
+// Validator используется в AuthN-мидлваре
 type Validator interface {
-	SignAccess(userID int64, email, role string) (string, error)
-	SignRefresh(userID int64, email, role string) (string, error)
 	Parse(tokenStr string) (jwtlib.MapClaims, error)
 }
 
-// RS256 с двумя действующими ключами и поддержкой kid.
+// RS256 менеджер токенов (access/refresh)
 type RS256 struct {
+	issuer     string
+	audience   string
 	accessTTL  time.Duration
 	refreshTTL time.Duration
 
-	currentKid string
-	privKeys   map[string]*rsa.PrivateKey
-	pubKeys    map[string]*rsa.PublicKey
+	signKey   *rsa.PrivateKey
+	signKID   string
+	verifyKey map[string]*rsa.PublicKey
 }
 
-// NewRS256 — для простоты генерируем 2 ключа при старте процесса.
-// key2 считаем "новым", key1 — "старым", оба действуют для проверки.
-func NewRS256(_ []byte, accessTTL time.Duration) *RS256 {
-	k1, _ := rsa.GenerateKey(rand.Reader, 2048) // в учебном коде ошибки игнорируем
-	k2, _ := rsa.GenerateKey(rand.Reader, 2048)
-
-	privs := map[string]*rsa.PrivateKey{
-		"key1": k1,
-		"key2": k2,
+// NewRS256 — ИМЕННО эту функцию сейчас ищет router.go
+func NewRS256(cfg config.Config) (*RS256, error) {
+	if len(cfg.RSKeys) == 0 {
+		return nil, errors.New("no RSA keys configured")
 	}
-	pubs := map[string]*rsa.PublicKey{
-		"key1": &k1.PublicKey,
-		"key2": &k2.PublicKey,
+
+	verify := make(map[string]*rsa.PublicKey)
+	var sign *rsa.PrivateKey
+	var signKID string
+
+	for i, kc := range cfg.RSKeys {
+		priv, err := loadPrivateKey(kc.PrivateKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("load private key %s: %w", kc.KID, err)
+		}
+		pub, err := loadPublicKey(kc.PublicKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("load public key %s: %w", kc.KID, err)
+		}
+		verify[kc.KID] = pub
+		if i == 0 { // первый ключ в списке — активный для подписи
+			sign = priv
+			signKID = kc.KID
+		}
 	}
 
 	return &RS256{
-		accessTTL:  accessTTL,
-		refreshTTL: 7 * 24 * time.Hour, // refresh TTL = 7 дней (по заданию)
-		currentKid: "key2",             // "новый" ключ для подписи
-		privKeys:   privs,
-		pubKeys:    pubs,
+		issuer:     cfg.Issuer,
+		audience:   cfg.Audience,
+		accessTTL:  cfg.AccessTTL,
+		refreshTTL: cfg.RefreshTTL,
+		signKey:    sign,
+		signKID:    signKID,
+		verifyKey:  verify,
+	}, nil
+}
+
+func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return nil, errors.New("no PEM block")
+	}
+	if !strings.Contains(block.Type, "PRIVATE KEY") {
+		return nil, fmt.Errorf("unexpected PEM type: %s", block.Type)
+	}
+
+	// PKCS#1
+	if k, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+		return k, nil
+	}
+	// PKCS#8
+	pk, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	k, ok := pk.(*rsa.PrivateKey)
+	if !ok {
+		return nil, errors.New("not RSA private key")
+	}
+	return k, nil
 }
 
-func (r *RS256) SignAccess(userID int64, email, role string) (string, error) {
-	return r.sign(userID, email, role, r.accessTTL, "access")
+func loadPublicKey(path string) (*rsa.PublicKey, error) {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return nil, errors.New("no PEM block")
+	}
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	k, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("not RSA public key")
+	}
+	return k, nil
 }
 
-func (r *RS256) SignRefresh(userID int64, email, role string) (string, error) {
-	return r.sign(userID, email, role, r.refreshTTL, "refresh")
-}
-
-func (r *RS256) sign(userID int64, email, role string, ttl time.Duration, typ string) (string, error) {
+// внутренний метод для генерации токена
+func (r *RS256) signToken(userID int64, email, role, typ string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := jwtlib.MapClaims{
 		"sub":   userID,
@@ -65,44 +127,53 @@ func (r *RS256) sign(userID int64, email, role string, ttl time.Duration, typ st
 		"role":  role,
 		"iat":   now.Unix(),
 		"exp":   now.Add(ttl).Unix(),
-		"iss":   "pz10-auth",
-		"aud":   "pz10-clients",
+		"iss":   r.issuer,
+		"aud":   r.audience,
 		"typ":   typ, // "access" или "refresh"
 	}
 
-	tok := jwtlib.NewWithClaims(jwtlib.SigningMethodRS256, claims)
-	tok.Header["kid"] = r.currentKid
+	t := jwtlib.NewWithClaims(jwtlib.SigningMethodRS256, claims)
+	// kid в заголовок
+	t.Header["kid"] = r.signKID
 
-	priv := r.privKeys[r.currentKid]
-	return tok.SignedString(priv)
+	return t.SignedString(r.signKey)
+}
+
+// Публичные методы — используются в сервисе
+
+func (r *RS256) SignAccess(userID int64, email, role string) (string, error) {
+	return r.signToken(userID, email, role, "access", r.accessTTL)
+}
+
+func (r *RS256) SignRefresh(userID int64, email, role string) (string, error) {
+	return r.signToken(userID, email, role, "refresh", r.refreshTTL)
 }
 
 func (r *RS256) Parse(tokenStr string) (jwtlib.MapClaims, error) {
-	token, err := jwtlib.Parse(tokenStr, func(tok *jwtlib.Token) (any, error) {
-		if tok.Method != jwtlib.SigningMethodRS256 {
-			return nil, errors.New("unexpected signing method")
+	token, err := jwtlib.Parse(tokenStr, func(t *jwtlib.Token) (any, error) {
+		if _, ok := t.Method.(*jwtlib.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected method: %T", t.Method)
 		}
-
-		kid, _ := tok.Header["kid"].(string)
+		kid, _ := t.Header["kid"].(string)
 		if kid == "" {
-			return nil, errors.New("missing kid")
+			// fallback — публичный ключ от активного приватного
+			return &r.signKey.PublicKey, nil
 		}
-		pub, ok := r.pubKeys[kid]
+		pub, ok := r.verifyKey[kid]
 		if !ok {
-			return nil, errors.New("unknown kid")
+			return nil, fmt.Errorf("unknown kid: %s", kid)
 		}
 		return pub, nil
-	},
-		jwtlib.WithAudience("pz10-clients"),
-		jwtlib.WithIssuer("pz10-auth"),
-	)
-	if err != nil || !token.Valid {
+	}, jwtlib.WithIssuer(r.issuer), jwtlib.WithAudience(r.audience))
+	if err != nil {
 		return nil, err
 	}
-
+	if !token.Valid {
+		return nil, errors.New("invalid token")
+	}
 	claims, ok := token.Claims.(jwtlib.MapClaims)
 	if !ok {
-		return nil, jwtlib.ErrTokenInvalidClaims
+		return nil, errors.New("invalid claims type")
 	}
 	return claims, nil
 }

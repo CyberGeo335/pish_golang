@@ -1,20 +1,26 @@
 package middleware
 
-import "net/http"
+import (
+	"net/http"
 
-// AuthZRoles — простой RBAC: проверяет, что роль пользователя входит в allowed.
+	"github.com/CyberGeo335/prak_ten/internal/http/httputil"
+)
+
 func AuthZRoles(allowed ...string) func(http.Handler) http.Handler {
 	set := map[string]struct{}{}
 	for _, a := range allowed {
 		set[a] = struct{}{}
 	}
-
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, _ := r.Context().Value(CtxClaimsKey).(map[string]any)
+			claims := ClaimsFromContext(r.Context())
+			if claims == nil {
+				httputil.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+				return
+			}
 			role, _ := claims["role"].(string)
 			if _, ok := set[role]; !ok {
-				jsonError(w, r, http.StatusForbidden, "forbidden", "insufficient role")
+				httputil.Error(w, http.StatusForbidden, "forbidden", "role not allowed")
 				return
 			}
 			next.ServeHTTP(w, r)

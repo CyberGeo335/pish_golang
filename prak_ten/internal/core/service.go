@@ -2,7 +2,6 @@ package core
 
 import (
 	"encoding/json"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -11,330 +10,302 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	jwtlib "github.com/golang-jwt/jwt/v5"
 
+	"github.com/CyberGeo335/prak_ten/internal/http/httputil"
 	"github.com/CyberGeo335/prak_ten/internal/http/middleware"
-	"github.com/CyberGeo335/prak_ten/internal/platform/jwt"
 	"github.com/CyberGeo335/prak_ten/internal/repo"
 )
 
-// userRepo — абстракция над репозиторием пользователей.
-// Здесь мы используем конкретный тип repo.UserRecord,
-// у которого должны быть экспортируемые поля ID, Email, Role.
 type userRepo interface {
 	CheckPassword(email, pass string) (repo.UserRecord, error)
 	ByID(id int64) (repo.UserRecord, error)
 }
 
-type Service struct {
-	repo      userRepo
-	jwt       jwt.Validator
-	blacklist *refreshBlacklist
-	rl        *rateLimiter
+type tokenManager interface {
+	SignAccess(userID int64, email, role string) (string, error)
+	SignRefresh(userID int64, email, role string) (string, error)
+	Parse(tokenStr string) (jwtlib.MapClaims, error)
 }
 
-func NewService(r userRepo, j jwt.Validator) *Service {
+type Service struct {
+	repo         userRepo
+	jwt          tokenManager
+	refreshBL    *refreshBlacklist
+	loginLimiter *loginLimiter
+}
+
+func NewService(r userRepo, tm tokenManager, loginMax int, loginWindow time.Duration) *Service {
 	return &Service{
-		repo:      r,
-		jwt:       j,
-		blacklist: newRefreshBlacklist(),
-		rl:        newRateLimiter(5, 5*time.Minute), // 5 попыток за 5 минут с одного IP
+		repo:         r,
+		jwt:          tm,
+		refreshBL:    newRefreshBlacklist(),
+		loginLimiter: newLoginLimiter(loginMax, loginWindow),
 	}
 }
 
-// POST /api/v1/login
-// Вход: {"Email":"...","Password":"..."}
-// Выход: {"access_token":"...","refresh_token":"..."}
+// ---------- Handlers ----------
+
 func (s *Service) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
-	if !s.rl.allow(ip) {
-		httpError(w, r, http.StatusTooManyRequests, "too_many_attempts",
-			"too many login attempts from this IP, please try later")
+	if ok, retry := s.loginLimiter.Allow(ip); !ok {
+		httputil.Error(w, http.StatusTooManyRequests, "too_many_requests", map[string]any{
+			"retry_after_seconds": int(retry.Seconds()),
+		})
 		return
 	}
 
 	var in struct {
-		Email    string
-		Password string
+		Email    string `json:"Email"`
+		Password string `json:"Password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Email == "" || in.Password == "" {
-		httpError(w, r, http.StatusBadRequest, "invalid_credentials", "email and password are required")
+		httputil.Error(w, http.StatusBadRequest, "invalid_payload", "Email and Password are required")
 		return
 	}
 
 	u, err := s.repo.CheckPassword(in.Email, in.Password)
 	if err != nil {
-		httpError(w, r, http.StatusUnauthorized, "unauthorized", "wrong email or password")
+		httputil.Error(w, http.StatusUnauthorized, "invalid_credentials", nil)
 		return
 	}
 
 	access, err := s.jwt.SignAccess(u.ID, u.Email, u.Role)
 	if err != nil {
-		httpError(w, r, http.StatusInternalServerError, "token_error", "failed to issue access token")
+		httputil.Error(w, http.StatusInternalServerError, "token_error", err.Error())
 		return
 	}
-
 	refresh, err := s.jwt.SignRefresh(u.ID, u.Email, u.Role)
 	if err != nil {
-		httpError(w, r, http.StatusInternalServerError, "token_error", "failed to issue refresh token")
+		httputil.Error(w, http.StatusInternalServerError, "token_error", err.Error())
 		return
 	}
 
-	jsonOK(w, http.StatusOK, map[string]any{
+	httputil.JSON(w, http.StatusOK, map[string]any{
 		"access_token":  access,
 		"refresh_token": refresh,
+		"token_type":    "Bearer",
 	})
 }
 
-// POST /api/v1/refresh
-// Вход:  {"refresh_token":"..."}
-// Выход: новая пара {"access_token":"...","refresh_token":"..."}
 func (s *Service) RefreshHandler(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		RefreshToken string `json:"refresh_token"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.RefreshToken == "" {
-		httpError(w, r, http.StatusBadRequest, "invalid_refresh", "refresh_token is required")
+		httputil.Error(w, http.StatusBadRequest, "invalid_payload", "refresh_token is required")
 		return
 	}
 
-	if s.blacklist.isBlacklisted(in.RefreshToken) {
-		httpError(w, r, http.StatusUnauthorized, "refresh_revoked", "refresh token has been revoked")
+	if s.refreshBL.IsRevoked(in.RefreshToken) {
+		httputil.Error(w, http.StatusUnauthorized, "refresh_revoked", nil)
 		return
 	}
 
 	claims, err := s.jwt.Parse(in.RefreshToken)
 	if err != nil {
-		httpError(w, r, http.StatusUnauthorized, "invalid_refresh", "cannot parse refresh token")
+		httputil.Error(w, http.StatusUnauthorized, "invalid_refresh", err.Error())
 		return
 	}
 
 	if typ, _ := claims["typ"].(string); typ != "refresh" {
-		httpError(w, r, http.StatusBadRequest, "invalid_refresh_type", "expected refresh token")
+		httputil.Error(w, http.StatusUnauthorized, "invalid_token_type", "expected refresh token")
 		return
 	}
 
-	subID := int64FromClaim(claims["sub"])
+	userID, ok := claimToInt64(claims["sub"])
+	if !ok {
+		httputil.Error(w, http.StatusUnauthorized, "invalid_sub", nil)
+		return
+	}
 	email, _ := claims["email"].(string)
 	role, _ := claims["role"].(string)
 
-	expUnix := int64FromClaim(claims["exp"])
-	if expUnix > 0 {
-		s.blacklist.add(in.RefreshToken, expUnix)
-	}
-
-	access, err := s.jwt.SignAccess(subID, email, role)
-	if err != nil {
-		httpError(w, r, http.StatusInternalServerError, "token_error", "failed to issue new access token")
+	expUnix, ok := claimToInt64(claims["exp"])
+	if !ok {
+		httputil.Error(w, http.StatusInternalServerError, "invalid_exp", nil)
 		return
 	}
 
-	refresh, err := s.jwt.SignRefresh(subID, email, role)
+	// Отзываем старый refresh
+	s.refreshBL.Revoke(in.RefreshToken, expUnix)
+
+	// Новая пара токенов
+	access, err := s.jwt.SignAccess(userID, email, role)
 	if err != nil {
-		httpError(w, r, http.StatusInternalServerError, "token_error", "failed to issue new refresh token")
+		httputil.Error(w, http.StatusInternalServerError, "token_error", err.Error())
+		return
+	}
+	refresh, err := s.jwt.SignRefresh(userID, email, role)
+	if err != nil {
+		httputil.Error(w, http.StatusInternalServerError, "token_error", err.Error())
 		return
 	}
 
-	jsonOK(w, http.StatusOK, map[string]any{
+	httputil.JSON(w, http.StatusOK, map[string]any{
 		"access_token":  access,
 		"refresh_token": refresh,
+		"token_type":    "Bearer",
 	})
 }
 
-// GET /api/v1/me
 func (s *Service) MeHandler(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value(middleware.CtxClaimsKey).(map[string]any)
-	if !ok {
-		httpError(w, r, http.StatusInternalServerError, "claims_missing", "AuthN middleware is not configured")
+	claims := middleware.ClaimsFromContext(r.Context())
+	if claims == nil {
+		httputil.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
-
-	jsonOK(w, http.StatusOK, map[string]any{
+	httputil.JSON(w, http.StatusOK, map[string]any{
 		"id":    claims["sub"],
 		"email": claims["email"],
 		"role":  claims["role"],
 	})
 }
 
-// GET /api/v1/users/{id}
-// ABAC: user может читать только себя (id == sub), admin — любой.
-func (s *Service) UserByIDHandler(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value(middleware.CtxClaimsKey).(map[string]any)
-	if !ok {
-		httpError(w, r, http.StatusInternalServerError, "claims_missing", nil)
+func (s *Service) AdminStats(w http.ResponseWriter, r *http.Request) {
+	httputil.JSON(w, http.StatusOK, map[string]any{
+		"users":   2,
+		"version": "1.0",
+	})
+}
+
+// ABAC: user может только своего /users/{id}, admin — любого
+func (s *Service) GetUserHandler(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.ClaimsFromContext(r.Context())
+	if claims == nil {
+		httputil.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
-
 	role, _ := claims["role"].(string)
-	subID := int64FromClaim(claims["sub"])
+	subID, ok := claimToInt64(claims["sub"])
+	if !ok {
+		httputil.Error(w, http.StatusUnauthorized, "invalid_sub", nil)
+		return
+	}
 
 	idStr := chi.URLParam(r, "id")
-	if idStr == "" {
-		httpError(w, r, http.StatusBadRequest, "bad_id", "id is required")
-		return
-	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		httpError(w, r, http.StatusBadRequest, "bad_id", "id must be integer")
+		httputil.Error(w, http.StatusBadRequest, "invalid_id", err.Error())
 		return
 	}
 
 	if role == "user" && id != subID {
-		httpError(w, r, http.StatusForbidden, "forbidden", "user can access only own profile")
+		httputil.Error(w, http.StatusForbidden, "forbidden", "user can access only own profile")
 		return
 	}
 
 	u, err := s.repo.ByID(id)
 	if err != nil {
-		httpError(w, r, http.StatusNotFound, "not_found", "user not found")
+		httputil.Error(w, http.StatusNotFound, "not_found", nil)
 		return
 	}
 
-	jsonOK(w, http.StatusOK, map[string]any{
+	httputil.JSON(w, http.StatusOK, map[string]any{
 		"id":    u.ID,
 		"email": u.Email,
 		"role":  u.Role,
 	})
 }
 
-// GET /api/v1/admin/stats
-func (s *Service) AdminStats(w http.ResponseWriter, r *http.Request) {
-	jsonOK(w, http.StatusOK, map[string]any{
-		"users":   2,
-		"version": "1.0",
-	})
-}
+// ---------- вспомогательные структуры и функции ----------
 
 type refreshBlacklist struct {
 	mu     sync.RWMutex
-	tokens map[string]int64 // token -> expUnix
+	tokens map[string]int64 // token -> exp (unix)
 }
 
 func newRefreshBlacklist() *refreshBlacklist {
-	return &refreshBlacklist{
-		tokens: make(map[string]int64),
-	}
+	return &refreshBlacklist{tokens: make(map[string]int64)}
 }
 
-func (b *refreshBlacklist) isBlacklisted(token string) bool {
+func (b *refreshBlacklist) IsRevoked(tok string) bool {
+	if tok == "" {
+		return false
+	}
 	b.mu.RLock()
-	exp, ok := b.tokens[token]
+	exp, ok := b.tokens[tok]
 	b.mu.RUnlock()
 	if !ok {
 		return false
 	}
-
-	now := time.Now().Unix()
-	if now > exp {
+	if time.Now().Unix() > exp {
 		b.mu.Lock()
-		delete(b.tokens, token)
+		delete(b.tokens, tok)
 		b.mu.Unlock()
 		return false
 	}
 	return true
 }
 
-func (b *refreshBlacklist) add(token string, exp int64) {
+func (b *refreshBlacklist) Revoke(tok string, exp int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.tokens[token] = exp
+	b.tokens[tok] = exp
 }
 
-// Простейший rate limiter: не более limit попыток за window с одного IP.
-type rateLimiter struct {
+type loginLimiter struct {
 	mu       sync.Mutex
-	attempts map[string][]time.Time // ip -> timestamps
-	limit    int
+	attempts map[string]*clientCounter
+	max      int
 	window   time.Duration
 }
 
-func newRateLimiter(limit int, window time.Duration) *rateLimiter {
-	return &rateLimiter{
-		attempts: make(map[string][]time.Time),
-		limit:    limit,
+type clientCounter struct {
+	count int
+	reset time.Time
+}
+
+func newLoginLimiter(max int, window time.Duration) *loginLimiter {
+	return &loginLimiter{
+		attempts: make(map[string]*clientCounter),
+		max:      max,
 		window:   window,
 	}
 }
 
-func (r *rateLimiter) allow(ip string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
+func (l *loginLimiter) Allow(ip string) (bool, time.Duration) {
 	now := time.Now()
-	threshold := now.Add(-r.window)
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
-	times := r.attempts[ip]
-	// фильтруем старые попытки
-	j := 0
-	for _, t := range times {
-		if t.After(threshold) {
-			times[j] = t
-			j++
+	c, ok := l.attempts[ip]
+	if !ok || now.After(c.reset) {
+		l.attempts[ip] = &clientCounter{
+			count: 1,
+			reset: now.Add(l.window),
 		}
+		return true, 0
 	}
-	times = times[:j]
-
-	if len(times) >= r.limit {
-		r.attempts[ip] = times
-		return false
+	if c.count >= l.max {
+		return false, c.reset.Sub(now)
 	}
-
-	times = append(times, now)
-	r.attempts[ip] = times
-	return true
-}
-
-type errorResponse struct {
-	Error   string      `json:"error"`
-	Details interface{} `json:"details,omitempty"`
-}
-
-func jsonOK(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func httpError(w http.ResponseWriter, r *http.Request, code int, msg string, details interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(errorResponse{
-		Error:   msg,
-		Details: details,
-	})
-
-	log.Printf("HTTP %d %s %s: %s (%v)", code, r.Method, r.URL.Path, msg, details)
-}
-
-func int64FromClaim(v any) int64 {
-	switch t := v.(type) {
-	case float64:
-		return int64(t)
-	case int64:
-		return t
-	case int:
-		return int64(t)
-	case string:
-		id, err := strconv.ParseInt(t, 10, 64)
-		if err == nil {
-			return id
-		}
-	}
-	return 0
+	c.count++
+	return true, 0
 }
 
 func clientIP(r *http.Request) string {
 	if ip := r.Header.Get("X-Real-IP"); ip != "" {
 		return ip
 	}
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		parts := strings.Split(fwd, ",")
-		if len(parts) > 0 {
-			return strings.TrimSpace(parts[0])
-		}
+	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+		parts := strings.Split(ip, ",")
+		return strings.TrimSpace(parts[0])
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+func claimToInt64(v any) (int64, bool) {
+	switch t := v.(type) {
+	case float64:
+		return int64(t), true
+	case int64:
+		return t, true
+	default:
+		return 0, false
+	}
 }

@@ -10,11 +10,10 @@ import (
 
 func main() {
 	cfg := config.Load()
-
-	mux := router.Build(cfg)
-
-	log.Println("listening on", cfg.Port)
-	if err := http.ListenAndServe(cfg.Port, mux); err != nil {
+	mux, err := router.Build(cfg)
+	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("listening on", cfg.Port)
+	log.Fatal(http.ListenAndServe(cfg.Port, mux))
 }
