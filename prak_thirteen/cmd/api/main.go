@@ -27,8 +27,8 @@ func main() {
 		_, _ = fmt.Fprintf(w, "%d\n", res)
 	})
 
-	log.Println("Server on :8080; pprof on /debug/pprof/")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("Server on :8086; pprof on /debug/pprof/")
+	log.Fatal(http.ListenAndServe(":8086", nil))
 }
 
 // enableLocks включает профили блокировок и мьютексов.
