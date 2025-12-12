@@ -77,5 +77,31 @@ cd prak_fifteen/cmd
 ```bash
 go build -o bin/prak_fifteen ./cmd/api/
 
-nohup ./bin/prak_fifteen >prak_fourteen.log 2>&1 &
+nohup ./bin/prak_fifteen >prak_fifteen.log 2>&1 &
 ```
+5) Команды и логи:
+```bash
+go test ./...
+```
+
+![Скриншот](./assets/Снимок%20экрана%202025-12-12%20в%2016.44.09.png)
+
+```bash
+go test -v ./internal/...
+```
+
+![Скриншот](./assets/Снимок%20экрана%202025-12-12%20в%2016.44.50.png)
+
+```bash
+go test -cover ./...
+```
+
+![Скриншот](./assets/Снимок%20экрана%202025-12-12%20в%2016.47.34.png)
+
+
+```bash
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+![Скриншот](./assets/Снимок%20экрана%202025-12-12%20в%2016.49.31.png)
