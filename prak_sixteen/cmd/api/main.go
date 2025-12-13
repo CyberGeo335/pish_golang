@@ -10,10 +10,10 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
-	"github.com/CyberGeo33/prak_sixteen/internal/db"
-	"github.com/CyberGeo33/prak_sixteen/internal/httpapi"
-	"github.com/CyberGeo33/prak_sixteen/internal/repo"
-	"github.com/CyberGeo33/prak_sixteen/internal/service"
+	"github.com/CyberGeo335/prak_sixteen/internal/db"
+	"github.com/CyberGeo335/prak_sixteen/internal/httpapi"
+	"github.com/CyberGeo335/prak_sixteen/internal/repo"
+	"github.com/CyberGeo335/prak_sixteen/internal/service"
 )
 
 func main() {
