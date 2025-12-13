@@ -22,10 +22,10 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 
-	"pz16/internal/db"
-	"pz16/internal/httpapi"
-	"pz16/internal/repo"
-	"pz16/internal/service"
+	"github.com/CyberGeo335/prak_sixteen/internal/db"
+	"github.com/CyberGeo335/prak_sixteen/internal/httpapi"
+	"github.com/CyberGeo335/prak_sixteen/internal/repo"
+	"github.com/CyberGeo335/prak_sixteen/internal/service"
 )
 
 // поднимаем Postgres на host-порту 5433 (чтобы не конфликтовать с локальным 5432)
@@ -134,7 +134,7 @@ func Test_CreateAndGet_withTC(t *testing.T) {
 }
 
 func Test_Get_NotFound_withTC(t *testing.T) {
-	dsn, stop := withPostgres(t)
+	dsn, stop := withPostgnres(t)
 	defer stop()
 
 	srv := newTestServer(t, dsn)
