@@ -17,10 +17,9 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/go-connections/nat"
+	testcontainers "github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/CyberGeo335/prak_sixteen/internal/db"
 	"github.com/CyberGeo335/prak_sixteen/internal/httpapi"
@@ -28,10 +27,8 @@ import (
 	"github.com/CyberGeo335/prak_sixteen/internal/service"
 )
 
-// поднимаем Postgres на host-порту 5433 (чтобы не конфликтовать с локальным 5432)
 func withPostgres(t *testing.T) (dsn string, term func()) {
 	t.Helper()
-
 	ctx := context.Background()
 
 	req := testcontainers.ContainerRequest{
@@ -42,15 +39,10 @@ func withPostgres(t *testing.T) (dsn string, term func()) {
 			"POSTGRES_USER":     "test",
 			"POSTGRES_PASSWORD": "test",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(30 * time.Second),
-		HostConfigModifier: func(hc *container.HostConfig) {
-			hc.PortBindings = nat.PortMap{
-				"5432/tcp": []nat.PortBinding{{
-					HostIP:   "127.0.0.1",
-					HostPort: "5433",
-				}},
-			}
-		},
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithStartupTimeout(30 * time.Second),
 	}
 
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -66,30 +58,15 @@ func withPostgres(t *testing.T) (dsn string, term func()) {
 	require.NoError(t, err)
 
 	dsn = fmt.Sprintf("postgres://test:test@%s:%s/notes_test?sslmode=disable", host, port.Port())
-
-	return dsn, func() {
-		_ = c.Terminate(ctx)
-	}
+	return dsn, func() { _ = c.Terminate(ctx) }
 }
 
-func newTestServer(t *testing.T, dsn string) *httptest.Server {
+func newTestServer(t *testing.T, dsn string) (baseURL string, closeFn func()) {
 	t.Helper()
 
 	dbx, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = dbx.Close() })
-
-	// ждём, пока Postgres окончательно поднимется
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		if err := dbx.Ping(); err == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("db ping timeout")
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
+	require.NoError(t, dbx.Ping())
 
 	db.MustApplyMigrations(dbx)
 
@@ -101,47 +78,68 @@ func newTestServer(t *testing.T, dsn string) *httptest.Server {
 	httpapi.Router{Svc: svc}.Register(r)
 
 	srv := httptest.NewServer(r)
-	t.Cleanup(srv.Close)
-	return srv
+	return srv.URL, func() {
+		srv.Close()
+		_ = dbx.Close()
+	}
+}
+
+type noteDTO struct {
+	ID      int64  `json:"id"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
 }
 
 func Test_CreateAndGet_withTC(t *testing.T) {
 	dsn, stop := withPostgres(t)
 	defer stop()
 
-	srv := newTestServer(t, dsn)
+	url, closeSrv := newTestServer(t, dsn)
+	defer closeSrv()
 
 	// Create
-	resp, err := http.Post(srv.URL+"/notes", "application/json",
+	resp, err := http.Post(url+"/notes", "application/json",
 		strings.NewReader(`{"title":"Hello","content":"World"}`))
 	require.NoError(t, err)
-	defer resp.Body.Close()
-
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
-	var created map[string]any
-	require.NoError(t, json.Unmarshal(body, &created))
+	_ = resp.Body.Close()
 
-	id := int64(created["id"].(float64))
+	var created noteDTO
+	require.NoError(t, json.Unmarshal(body, &created))
+	require.True(t, created.ID > 0)
 
 	// Get
-	resp2, err := http.Get(fmt.Sprintf("%s/notes/%d", srv.URL, id))
+	resp2, err := http.Get(fmt.Sprintf("%s/notes/%d", url, created.ID))
 	require.NoError(t, err)
-	defer resp2.Body.Close()
-
 	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	_ = resp2.Body.Close()
 }
 
 func Test_Get_NotFound_withTC(t *testing.T) {
-	dsn, stop := withPostgnres(t)
+	dsn, stop := withPostgres(t)
 	defer stop()
 
-	srv := newTestServer(t, dsn)
+	url, closeSrv := newTestServer(t, dsn)
+	defer closeSrv()
 
-	resp, err := http.Get(fmt.Sprintf("%s/notes/%d", srv.URL, 999999))
+	resp, err := http.Get(url + "/notes/999999")
 	require.NoError(t, err)
-	defer resp.Body.Close()
-
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+	_ = resp.Body.Close()
+}
+
+func Test_Create_BadJSON_withTC(t *testing.T) {
+	dsn, stop := withPostgres(t)
+	defer stop()
+
+	url, closeSrv := newTestServer(t, dsn)
+	defer closeSrv()
+
+	resp, err := http.Post(url+"/notes", "application/json",
+		strings.NewReader(`{"title":`)) // сломанный JSON
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	_ = resp.Body.Close()
 }

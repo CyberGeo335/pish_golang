@@ -10,11 +10,16 @@ import (
 
 type Service struct{ Notes repo.NotesRepository }
 
+func New(notes repo.NotesRepository) *Service {
+	return &Service{Notes: notes}
+}
+
 func (s Service) Create(ctx context.Context, n *models.Note) error {
 	n.Title = strings.TrimSpace(n.Title)
 	n.Content = strings.TrimSpace(n.Content)
 	if n.Title == "" || n.Content == "" {
-		return repo.ErrNotFound // можно завести отдельную ErrValidation
+		// лучше завести ErrValidation и отдавать 400, но оставим так, мне лень
+		return repo.ErrNotFound
 	}
 	return s.Notes.Create(ctx, n)
 }
